@@ -7,16 +7,19 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 const testState = vi.hoisted(() => {
   const listModels = vi.fn<() => Promise<never[]>>(async () => []);
+  const listGadgets = vi.fn<() => Promise<never[]>>(async () => []);
   const newGadget = vi.fn<() => never>();
   return {
     addToast: vi.fn<(toast: unknown) => void>(),
-    authenticatedApi: { listModels, newGadget },
+    authenticatedApi: { listModels, listGadgets, newGadget },
     currentUser: { id: "user-a", name: "User A" },
     listModels,
+    listGadgets,
     navigate: vi.fn<(options: unknown) => void>(),
     newGadget,
     seeds: [] as Array<{ text?: string; nonce?: number }>,
     draftStorageKeys: [] as Array<string | undefined>,
+    workspaceTargets: [] as string[],
   };
 });
 
@@ -50,6 +53,25 @@ vi.mock("./ChatInterface", () => ({
 
 vi.mock("./components/MeshBackground", () => ({ default: () => null }));
 vi.mock("./components/AppShell/HomeTaskSuggestions", () => ({ default: () => null }));
+vi.mock("./components/HomeWorkspaceSelector", () => ({
+  NEW_WORKSPACE_TARGET: "new",
+  default: ({
+    value,
+    onChange,
+  }: {
+    value: string;
+    onChange: (target: string) => void;
+  }) => {
+    testState.workspaceTargets.push(value);
+    return (
+      <button type="button" aria-label="Workspace target" onClick={() => onChange(value)}>
+        {value}
+      </button>
+    );
+  },
+  loadHomeWorkspaces: async (listGadgets: () => Promise<unknown[]>) => listGadgets(),
+}));
+vi.mock("./ObserverConfigModal", () => ({ default: () => null }));
 vi.mock("./useDocumentTitle", () => ({ useDocumentTitle: () => {} }));
 
 import { HomePageContent } from "./routes/index";
@@ -66,6 +88,7 @@ describe("Home prompt route flow", () => {
     localStorage.clear();
     testState.seeds.length = 0;
     testState.draftStorageKeys.length = 0;
+    testState.workspaceTargets.length = 0;
     vi.clearAllMocks();
   });
 
@@ -82,5 +105,7 @@ describe("Home prompt route flow", () => {
     expect(testState.navigate).toHaveBeenCalledWith({ to: "/", search: {}, replace: true });
     expect(testState.newGadget).not.toHaveBeenCalled();
     expect(testState.draftStorageKeys).toContain("gadgets:composer-draft:v1:user-a:home");
+    expect(testState.workspaceTargets).toContain("new");
+    expect(testState.listGadgets).toHaveBeenCalled();
   });
 });
